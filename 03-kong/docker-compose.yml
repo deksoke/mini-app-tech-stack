@@ -1,0 +1,120 @@
+version: '3.3'
+
+volumes:
+  kong_data: {}
+
+networks:
+  backend-net:
+    external: true
+
+services:
+
+  #######################################
+  # Postgres: The database used by Kong
+  #######################################
+  kong-database:
+    image: postgres:9.5
+    environment:
+      POSTGRES_DB: ${KONG_PG_DATABASE}
+      POSTGRES_USER: ${KONG_PG_USER}
+      POSTGRES_PASSWORD: ${KONG_PG_PASSWORD}
+    healthcheck:
+      test: [ "CMD", "pg_isready", "-U", "${KONG_PG_USER}" ]
+      interval: 30s
+      timeout: 30s
+      retries: 3
+    restart: on-failure
+    stdin_open: true
+    tty: true
+    networks:
+      - backend-net
+    volumes:
+      - kong_data:/var/lib/postgresql/data
+    ports:
+      - 11432:5432
+
+  #######################################
+  # Kong database migration
+  #######################################
+  kong-migrations:
+    image: kong:3.0.0
+    command: kong migrations bootstrap
+    depends_on:
+      - kong-database
+    environment:
+      KONG_DATABASE: postgres
+      KONG_PG_DATABASE: ${KONG_PG_DATABASE}
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: ${KONG_PG_USER}
+      KONG_PG_PASSWORD: ${KONG_PG_PASSWORD}
+    networks:
+      - backend-net
+    restart: on-failure
+
+  #######################################
+  # Kong: The API Gateway
+  #######################################
+  kong:
+    image: kong:3.0.0
+    user: "${KONG_USER}"
+    depends_on:
+      - kong-database
+      - kong-migrations
+    environment:
+      KONG_ADMIN_ACCESS_LOG: /dev/stdout
+      KONG_ADMIN_ERROR_LOG: /dev/stderr
+      KONG_ADMIN_LISTEN: '0.0.0.0:8001'
+      KONG_CASSANDRA_CONTACT_POINTS: kong-database
+      KONG_DATABASE: postgres
+      KONG_PG_DATABASE: ${KONG_PG_DATABASE}
+      KONG_PG_HOST: kong-database
+      KONG_PG_USER: ${KONG_PG_USER}
+      KONG_PG_PASSWORD: ${KONG_PG_PASSWORD}
+      KONG_PROXY_ACCESS_LOG: /dev/stdout
+      KONG_PROXY_ERROR_LOG: /dev/stderr
+    networks:
+      - backend-net
+    ports:
+      - "80:8000/tcp"
+      - "443:8443/tcp"
+    healthcheck:
+      test: [ "CMD", "kong", "health" ]
+      interval: 10s
+      timeout: 10s
+      retries: 10
+    restart: on-failure
+
+  #######################################
+  # Konga database prepare
+  #######################################
+  konga-prepare:
+    image: pantsel/konga:latest
+    command: "-c prepare -a postgres -u postgresql://${KONG_PG_USER}:${KONG_PG_PASSWORD}@kong-database:5432/${KONGA_PG_DATABASE}"
+    networks:
+      - backend-net
+    restart: on-failure
+    links:
+      - kong-database
+    depends_on:
+      - kong-database
+
+  #######################################
+  # Konga: Kong GUI
+  #######################################
+  konga:
+    image: pantsel/konga:latest
+    depends_on:
+      - kong-database
+      - konga-prepare
+    environment:
+      - DB_ADAPTER=postgres
+      - DB_HOST=kong-database
+      - DB_PORT=5432
+      - DB_DATABASE=${KONGA_PG_DATABASE}
+      - DB_USER=${KONG_PG_USER}
+      - DB_PASSWORD=${KONG_PG_PASSWORD}
+    networks:
+      - backend-net
+    ports:
+      - "1337:1337"
+    restart: always

@@ -1,0 +1,21 @@
+version: '3'
+
+networks:
+  backend-net:
+    external: true
+
+services:
+  filebrowser:
+    container_name: filebrowser
+    image: hurlenko/filebrowser
+    user: "${UID}:${GID}"
+    environment:
+      - FB_BASEURL=/filebrowser
+    volumes:
+      - /root/devtools:/data/root/devtools
+      - ./config:/config
+    networks:
+      - backend-net
+    ports:
+      - 8080:8080
+    restart: always

@@ -1,0 +1,21 @@
+version: "3"
+
+volumes:
+  uptime_kuma_data:
+
+
+networks:
+  backend-net:
+    external: true
+
+services:
+  app:
+    container_name: uptime-kuma
+    image: louislam/uptime-kuma:1
+    environment:
+      - TZ=Asia/Bangkok
+    volumes:
+      - uptime_kuma_data:/app/data
+    networks:
+      - backend-net
+    restart: always

@@ -1,0 +1,19 @@
+version: '3'
+
+services:
+  portainer_ce:
+    image: portainer/portainer-ce:2.15.1-alpine
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - portainer_data:/data
+    ports:
+      - 9443:9443
+    restart: always
+
+volumes:
+  portainer_data:
+    external: true
+
+networks:
+  backend-net:
+    external: true

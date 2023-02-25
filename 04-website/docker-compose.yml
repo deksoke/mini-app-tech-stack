@@ -1,0 +1,15 @@
+version: "3"
+
+networks:
+  frontend-net:
+    external: true
+
+services:
+  app:
+    container_name: mini-app
+    image: nginx:1.23.1-alpine
+    environment:
+      - TZ=Asia/Bangkok
+    networks:
+      - frontend-net
+    restart: on-failure
